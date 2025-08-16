@@ -41,3 +41,24 @@ if ( file_exists( $autoload ) ) {
 }
 
 use Keystone\Keystone;
+
+/**
+ * Activation: DB tables, rewrite rules, caps scaffolding.
+ */
+function keystone_seo_activate() {
+}
+register_activation_hook( __FILE__, 'keystone_seo_activate' );
+
+/**
+ * Deactivation: flush rewrites only (keep data).
+ */
+function keystone_seo_deactivate() {
+}
+register_deactivation_hook( __FILE__, 'keystone_seo_deactivate' );
+
+/**
+ * Bootstrap runtime.
+ */
+add_action( 'plugins_loaded', 'keystone_seo_boot' );
+function keystone_seo_boot() {
+}

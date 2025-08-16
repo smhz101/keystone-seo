@@ -1,0 +1,16 @@
+<?xml version="1.0"?>
+<ruleset name="Keystone SEO Standards">
+  <description>WordPress Coding Standards for Keystone SEO.</description>
+
+  <file>keystone-seo.php</file>
+  <file>src</file>
+
+  <exclude-pattern>vendor/*</exclude-pattern>
+  <exclude-pattern>node_modules/*</exclude-pattern>
+
+  <rule ref="WordPress-Extra"/>
+  <rule ref="PHPCompatibility"/>
+  <config name="testVersion" value="7.2-"/>
+
+  <arg value="sp"/> <!-- show sniff and progress -->
+</ruleset>
