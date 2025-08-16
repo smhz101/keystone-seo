@@ -62,6 +62,13 @@ use Keystone\Sitemap\Providers\PostTypeSource;
 use Keystone\Sitemap\Providers\TaxonomySource;
 use Keystone\Sitemap\CacheInvalidator;
 
+use Keystone\Importers\ImportManager;
+use Keystone\Importers\YoastImporter;
+use Keystone\Importers\RankMathImporter;
+use Keystone\Importers\AioseoImporter;
+use Keystone\Importers\Admin\ImportPage;
+use Keystone\Compatibility\ConflictDetector;
+
 use Keystone\Cli\Commands;
 
 if ( ! defined( 'ABSPATH' ) ) { exit; }
@@ -186,6 +193,24 @@ class Keystone {
 		// REST.
 		$this->c->bind( 'rest.settings', function ( $c ) { return new SettingsController( $c->make( 'caps' ), $c->make( 'nonce' ) ); } );
 
+		// Importers
+		$c->bind( 'import.manager', function( Container $c ) {
+			$mgr = new ImportManager();
+			$mgr->register( new YoastImporter() );
+			$mgr->register( new RankMathImporter() );
+			$mgr->register( new AioseoImporter() );
+			return $mgr;
+		} );
+
+		$c->bind( 'import.page', function( Container $c ) {
+			return new ImportPage( $c->make( 'import.manager' ) );
+		} );
+
+		// Conflicts
+		$c->bind( 'compat.detector', function( Container $c ) {
+			return new ConflictDetector();
+		} );
+
 		// CLI. 
 		$this->c->bind( 'cli.commands', function ( $c ) {
 			return new Commands( 
@@ -263,6 +288,10 @@ class Keystone {
 		// IndexNow key route
 		$this->hooks->action( 'init', $this->c->make( 'indexnow.keyroute' ), 'add_rewrite_rules' );
 		$this->hooks->action( 'template_redirect', $this->c->make( 'indexnow.keyroute' ), 'maybe_render_key', 0, 0 );
+
+		// Importers
+		$this->container->make( 'import.page' ); 
+		$this->container->make( 'compat.detector' );
 
 		// CLI.
 		$this->c->make( 'cli.commands' )->register();
