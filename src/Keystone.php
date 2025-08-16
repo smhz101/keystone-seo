@@ -39,6 +39,9 @@ use Keystone\Schema\Providers\ProductProvider;
 
 use Keystone\Integrations\WooCommerce\ProductDataProvider;
 
+use Keystone\Social\SocialService;
+use Keystone\Social\ImageGenerator;
+
 use Keystone\Meta\MetaRepository;
 use Keystone\Meta\MetaBox;
 use Keystone\Meta\CanonicalRobots;
@@ -89,6 +92,16 @@ class Keystone {
 		// Canonical + robots.
 		$this->c->bind( 'meta.canonical', function ( $c ) {
 			return new CanonicalRobots( $c->make( 'meta.repo' ), $c->make( 'settings' ) );
+		} );
+
+		// Social tags
+		$this->c->bind( 'social', function( $c ) {
+			return new SocialService( $c->make( 'settings' ), $c->make( 'meta.repo' ) );
+		} );
+
+		// OG generator
+		$this->c->bind( 'og.gen', function( $c ) {
+			return new ImageGenerator( $c->make( 'settings' ) );
 		} );
 
 		// Breadcrumbs + template tags.
@@ -147,6 +160,8 @@ class Keystone {
 		$this->c->make( 'redirect.repo' )->migrate();
 		$this->c->make( 'nf.repo' )->migrate();
 		$this->c->make( 'sitemap.controller' )->add_rewrite_rules();
+		$this->c->make( 'og.gen' )->add_rewrite_rules();
+		flush_rewrite_rules();
 	}
 
 	public function run() {
@@ -167,6 +182,13 @@ class Keystone {
 
 		// Canonical + robots.
 		$this->hooks->action( 'wp_head', $this->c->make( 'meta.canonical' ), 'output', 0, 0 );
+
+		// Social meta tags
+		$this->hooks->action( 'wp_head', $this->c->make( 'social' ), 'output', 4, 0 );
+
+		// OG dynamic image route
+		$this->hooks->action( 'init', $this->c->make( 'og.gen' ), 'add_rewrite_rules' );
+		$this->hooks->action( 'template_redirect', $this->c->make( 'og.gen' ), 'maybe_render', 0, 0 );
 
 		// Shortcode + template tag.
 		$this->hooks->action( 'init', $this->c->make( 'frontend.tags' ), 'register_shortcodes' );

@@ -42,6 +42,10 @@ class SettingsPage {
 			'site_search_url'=> '',
 			'title_template' => '%title% %sep% %sitename%',
 			'desc_template'  => '%tagline%',
+			'og_default_image' => '',
+			'og_use_generator' => false,
+			'og_bg'            => '',
+			'og_fg'            => '',
 		);
 		$settings = wp_parse_args( get_option( $this->option_key, array() ), $defaults );
 		?>
@@ -109,6 +113,31 @@ class SettingsPage {
 					</tr>
 				</table>
 
+				<h2 class="title"><?php esc_html_e( 'Social (Open Graph / Twitter)', 'keystone-seo' ); ?></h2>
+				<table class="form-table" role="presentation">
+					<tr>
+						<th scope="row"><?php esc_html_e( 'Default Social Image URL', 'keystone-seo' ); ?></th>
+						<td>
+							<input type="url" name="og_default_image" class="regular-text" value="<?php echo esc_attr( isset( $settings['og_default_image'] ) ? $settings['og_default_image'] : '' ); ?>">
+							<p class="description"><?php esc_html_e( 'Used when no featured image is available.', 'keystone-seo' ); ?></p>
+						</td>
+					</tr>
+					<tr>
+						<th scope="row"><?php esc_html_e( 'Enable Dynamic OG Image', 'keystone-seo' ); ?></th>
+						<td>
+							<label><input type="checkbox" name="og_use_generator" value="1" <?php checked( ! empty( $settings['og_use_generator'] ) ); ?>> <?php esc_html_e( 'Generate simple OG image for posts', 'keystone-seo' ); ?></label>
+						</td>
+					</tr>
+					<tr>
+						<th scope="row"><?php esc_html_e( 'Generator Colors (optional)', 'keystone-seo' ); ?></th>
+						<td>
+							<input type="text" name="og_bg" value="<?php echo esc_attr( isset( $settings['og_bg'] ) ? $settings['og_bg'] : '' ); ?>" placeholder="#111827" class="small-text">
+							<input type="text" name="og_fg" value="<?php echo esc_attr( isset( $settings['og_fg'] ) ? $settings['og_fg'] : '' ); ?>" placeholder="#FFFFFF" class="small-text">
+							<p class="description"><?php esc_html_e( 'Hex colors. Leave empty for defaults.', 'keystone-seo' ); ?></p>
+						</td>
+					</tr>
+				</table>
+
 				<?php submit_button( __( 'Save Settings', 'keystone-seo' ), 'primary', 'keystone_save_settings' ); ?>
 			</form>
 		</div>
@@ -132,16 +161,20 @@ class SettingsPage {
 		}
 
 		$data = array(
-			'site_name'      => isset( $_POST['site_name'] ) ? sanitize_text_field( wp_unslash( $_POST['site_name'] ) ) : '',
-			'indexnow'       => isset( $_POST['indexnow'] ) ? (bool) absint( $_POST['indexnow'] ) : false,
-			'indexnowKey'    => isset( $_POST['indexnowKey'] ) ? sanitize_text_field( wp_unslash( $_POST['indexnowKey'] ) ) : '',
-			'org_name'       => isset( $_POST['org_name'] ) ? sanitize_text_field( wp_unslash( $_POST['org_name'] ) ) : '',
-			'org_logo'       => isset( $_POST['org_logo'] ) ? esc_url_raw( wp_unslash( $_POST['org_logo'] ) ) : '',
-			'org_url'        => isset( $_POST['org_url'] ) ? esc_url_raw( wp_unslash( $_POST['org_url'] ) ) : '',
-			'same_as'        => $same_as,
-			'title_template' => isset( $_POST['title_template'] ) ? sanitize_text_field( wp_unslash( $_POST['title_template'] ) ) : '',
-			'desc_template'  => isset( $_POST['desc_template'] ) ? sanitize_text_field( wp_unslash( $_POST['desc_template'] ) ) : '',
-			'site_search_url'=> isset( $_POST['site_search_url'] ) ? esc_url_raw( wp_unslash( $_POST['site_search_url'] ) ) : '',
+			'site_name'      		=> isset( $_POST['site_name'] ) ? sanitize_text_field( wp_unslash( $_POST['site_name'] ) ) : '',
+			'indexnow'       		=> isset( $_POST['indexnow'] ) ? (bool) absint( $_POST['indexnow'] ) : false,
+			'indexnowKey'    		=> isset( $_POST['indexnowKey'] ) ? sanitize_text_field( wp_unslash( $_POST['indexnowKey'] ) ) : '',
+			'org_name'       		=> isset( $_POST['org_name'] ) ? sanitize_text_field( wp_unslash( $_POST['org_name'] ) ) : '',
+			'org_logo'       		=> isset( $_POST['org_logo'] ) ? esc_url_raw( wp_unslash( $_POST['org_logo'] ) ) : '',
+			'org_url'        		=> isset( $_POST['org_url'] ) ? esc_url_raw( wp_unslash( $_POST['org_url'] ) ) : '',
+			'same_as'        		=> $same_as,
+			'title_template' 		=> isset( $_POST['title_template'] ) ? sanitize_text_field( wp_unslash( $_POST['title_template'] ) ) : '',
+			'desc_template'  		=> isset( $_POST['desc_template'] ) ? sanitize_text_field( wp_unslash( $_POST['desc_template'] ) ) : '',
+			'site_search_url'		=> isset( $_POST['site_search_url'] ) ? esc_url_raw( wp_unslash( $_POST['site_search_url'] ) ) : '',
+			'og_default_image' 	=> isset( $_POST['og_default_image'] ) ? esc_url_raw( wp_unslash( $_POST['og_default_image'] ) ) : '',
+			'og_use_generator' 	=> isset( $_POST['og_use_generator'] ) ? (bool) absint( $_POST['og_use_generator'] ) : false,
+			'og_bg' 						=> isset( $_POST['og_bg'] ) ? sanitize_text_field( wp_unslash( $_POST['og_bg'] ) ) : '',
+			'og_fg' 						=> isset( $_POST['og_fg'] ) ? sanitize_text_field( wp_unslash( $_POST['og_fg'] ) ) : '',
 		);
 
 		update_option( $this->option_key, $data );
