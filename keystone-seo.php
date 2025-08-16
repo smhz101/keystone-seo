@@ -14,7 +14,7 @@ if ( ! defined( 'ABSPATH' ) ) {
 }
 
 /**
- * Constants
+ * Constants (used across plugin)
  */
 define( 'KEYSTONE_SEO_FILE', __FILE__ );
 define( 'KEYSTONE_SEO_DIR', plugin_dir_path( __FILE__ ) );
@@ -46,6 +46,11 @@ use Keystone\Keystone;
  * Activation: DB tables, rewrite rules, caps scaffolding.
  */
 function keystone_seo_activate() {
+	if ( class_exists( Keystone::class ) ) {
+		$instance = new Keystone();
+		$instance->activate();
+	}
+	flush_rewrite_rules();
 }
 register_activation_hook( __FILE__, 'keystone_seo_activate' );
 
@@ -53,6 +58,7 @@ register_activation_hook( __FILE__, 'keystone_seo_activate' );
  * Deactivation: flush rewrites only (keep data).
  */
 function keystone_seo_deactivate() {
+	flush_rewrite_rules();
 }
 register_deactivation_hook( __FILE__, 'keystone_seo_deactivate' );
 
@@ -61,4 +67,9 @@ register_deactivation_hook( __FILE__, 'keystone_seo_deactivate' );
  */
 add_action( 'plugins_loaded', 'keystone_seo_boot' );
 function keystone_seo_boot() {
+	if ( ! class_exists( Keystone::class ) ) {
+		return;
+	}
+	$plugin = new Keystone();
+	$plugin->run();
 }
