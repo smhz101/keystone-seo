@@ -3,6 +3,14 @@ namespace Keystone\Redirects;
 
 if ( ! defined( 'ABSPATH' ) ) { exit; }
 
+use Keystone\Redirects\RedirectRepository;
+
+// Ensure screen helpers exist (defensive on some hosts).
+if ( ! function_exists( 'convert_to_screen' ) ) {
+	if ( file_exists( ABSPATH . 'wp-admin/includes/screen.php' ) ) {
+		require_once ABSPATH . 'wp-admin/includes/screen.php';
+	}
+}
 if ( ! class_exists( '\WP_List_Table' ) ) {
 	require_once ABSPATH . 'wp-admin/includes/class-wp-list-table.php';
 }

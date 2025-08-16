@@ -8,24 +8,22 @@ use Keystone\Redirects\RedirectListTable;
 
 if ( ! defined( 'ABSPATH' ) ) { exit; }
 
-/**
- * Admin UI for managing redirects.
- */
 class RedirectsPage {
+
 	protected $caps;
 	protected $nonce;
 	protected $repo;
-	protected $table;
+	protected $hook_suffix = '';
 
 	public function __construct( Capabilities $caps, Nonce $nonce, RedirectRepository $repo ) {
 		$this->caps  = $caps;
 		$this->nonce = $nonce;
 		$this->repo  = $repo;
-		$this->table = new RedirectListTable( $repo );
 	}
 
+	/** Register submenu and bind load-* hook (screen is available there) */
 	public function add_menu() {
-		add_submenu_page(
+		$this->hook_suffix = add_submenu_page(
 			'keystone-seo',
 			__( 'Redirects', 'keystone-seo' ),
 			__( 'Redirects', 'keystone-seo' ),
@@ -33,6 +31,14 @@ class RedirectsPage {
 			'keystone-redirects',
 			array( $this, 'render' )
 		);
+
+		// Handle actions when the screen loads (safe point).
+		add_action( 'load-' . $this->hook_suffix, array( $this, 'on_load' ) );
+	}
+
+	/** Safe point to process POST/GET actions */
+	public function on_load() {
+		$this->handle_actions();
 	}
 
 	protected function handle_actions() {
@@ -72,7 +78,8 @@ class RedirectsPage {
 	public function render() {
 		if ( ! $this->caps->can_manage_settings() ) { wp_die( esc_html__( 'Access denied.', 'keystone-seo' ) ); }
 
-		$this->handle_actions();
+		// Instantiate AFTER screen is set.
+		$table = new RedirectListTable( $this->repo );
 
 		$edit_id = isset( $_GET['edit'] ) ? absint( $_GET['edit'] ) : 0; // phpcs:ignore
 		$item    = $edit_id ? $this->repo->get( $edit_id ) : array(
@@ -83,7 +90,7 @@ class RedirectsPage {
 			'regex'  => 0,
 		);
 
-		$this->table->prepare_items();
+		$table->prepare_items();
 		?>
 		<div class="wrap">
 			<h1><?php esc_html_e( 'Redirects', 'keystone-seo' ); ?></h1>
@@ -120,7 +127,7 @@ class RedirectsPage {
 
 			<form method="post">
 				<?php $this->nonce->field(); ?>
-				<?php $this->table->display(); ?>
+				<?php $table->display(); ?>
 			</form>
 		</div>
 		<?php
