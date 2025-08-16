@@ -1,28 +1,30 @@
 <?php
 namespace Keystone\Schema\Providers;
 
-use Keystone\Schema\Contracts\SchemaProviderInterface;
+use Keystone\Schema\Contracts\ProviderInterface;
 
 if ( ! defined( 'ABSPATH' ) ) { exit; }
 
 /**
- * Organization node for the site/brand.
- * Settings keys used: org_name, org_logo, org_url, same_as (array).
+ * Outputs Organization (or LocalBusiness if you extend later via filters).
+ * Uses settings if provided; falls back to blog name and site icon.
  */
-class OrganizationProvider implements SchemaProviderInterface {
-	public function nodes( $context ) {
-		$s = isset( $context['settings'] ) ? $context['settings'] : array();
+class OrganizationProvider implements ProviderInterface {
 
-		$name = isset( $s['org_name'] ) && $s['org_name'] ? $s['org_name'] : get_bloginfo( 'name' );
-		$logo = isset( $s['org_logo'] ) ? esc_url_raw( $s['org_logo'] ) : '';
-		$url  = isset( $s['org_url'] ) && $s['org_url'] ? esc_url_raw( $s['org_url'] ) : home_url( '/' );
-		$same = isset( $s['same_as'] ) && is_array( $s['same_as'] ) ? array_values( array_filter( $s['same_as'] ) ) : array();
+	public function nodes() {
+		$site_url = home_url( '/' );
+		$org_id   = trailingslashit( $site_url ) . '#organization';
+
+		$logo = '';
+		$icon_id = get_option( 'site_icon' );
+		if ( $icon_id ) {
+			$logo = wp_get_attachment_image_url( $icon_id, 'full' );
+		}
 
 		$node = array(
 			'@type' => 'Organization',
-			'@id'   => trailingslashit( $url ) . '#organization',
-			'name'  => $name,
-			'url'   => $url,
+			'@id'   => $org_id,
+			'name'  => get_bloginfo( 'name' ),
 		);
 
 		if ( $logo ) {
@@ -31,9 +33,12 @@ class OrganizationProvider implements SchemaProviderInterface {
 				'url'   => $logo,
 			);
 		}
-		if ( ! empty( $same ) ) {
-			$node['sameAs'] = array_map( 'esc_url_raw', $same );
-		}
+
+		/**
+		 * Allow extensions to enrich Organization (same @id).
+		 * Example: address, sameAs, contactPoint, etc.
+		 */
+		$node = apply_filters( 'keystone/schema/organization', $node );
 
 		return array( $node );
 	}

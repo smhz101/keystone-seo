@@ -1,36 +1,34 @@
 <?php
 namespace Keystone\Schema\Providers;
 
-use Keystone\Schema\Contracts\SchemaProviderInterface;
+use Keystone\Schema\Contracts\ProviderInterface;
 
 if ( ! defined( 'ABSPATH' ) ) { exit; }
 
 /**
- * WebSite node (+ SearchAction).
- * Settings keys used: site_search_url (e.g., /?s={search_term_string})
+ * Outputs WebSite with SearchAction (sitelinks search box).
+ * https://developers.google.com/search/docs/appearance/structured-data/sitelinks-searchbox
  */
-class WebSiteProvider implements SchemaProviderInterface {
-	public function nodes( $context ) {
-		$home = home_url( '/' );
+class WebSiteProvider implements ProviderInterface {
 
-		$search_url = isset( $context['settings']['site_search_url'] ) && $context['settings']['site_search_url']
-			? esc_url_raw( $context['settings']['site_search_url'] )
-			: add_query_arg( 's', '{search_term_string}', home_url( '/' ) );
+	public function nodes() {
+		$site_url = home_url( '/' );
+		$web_id   = trailingslashit( $site_url ) . '#website';
+		$org_id   = trailingslashit( $site_url ) . '#organization';
 
-		$site = array(
-			'@type' => 'WebSite',
-			'@id'   => trailingslashit( $home ) . '#website',
-			'url'   => $home,
-			'name'  => get_bloginfo( 'name' ),
+		$node = array(
+			'@type'    => 'WebSite',
+			'@id'      => $web_id,
+			'url'      => $site_url,
+			'name'     => get_bloginfo( 'name' ),
+			'publisher'=> array( '@id' => $org_id ),
 			'potentialAction' => array(
-				array(
-					'@type'       => 'SearchAction',
-					'target'      => $search_url,
-					'query-input' => 'required name=search_term_string',
-				),
+				'@type'       => 'SearchAction',
+				'target'      => add_query_arg( 's', '{search_term_string}', home_url( '/' ) ),
+				'query-input' => 'required name=search_term_string',
 			),
 		);
 
-		return array( $site );
+		return array( $node );
 	}
 }

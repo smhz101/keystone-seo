@@ -1,64 +1,56 @@
 <?php
 namespace Keystone\Schema\Providers;
 
-use Keystone\Schema\Contracts\SchemaProviderInterface;
+use Keystone\Schema\Contracts\ProviderInterface;
 use Keystone\Integrations\WooCommerce\ProductDataProvider;
 
 if ( ! defined( 'ABSPATH' ) ) { exit; }
 
 /**
- * Product schema for WooCommerce single product pages.
+ * WooCommerce Product schema on single product pages.
+ * https://developers.google.com/search/docs/appearance/structured-data/product
  */
-class ProductProvider implements SchemaProviderInterface {
-	/** @var ProductDataProvider */
-	protected $woo;
+class ProductProvider implements ProviderInterface {
 
-	public function __construct( ProductDataProvider $woo ) {
-		$this->woo = $woo;
+	protected $data;
+
+	public function __construct( ProductDataProvider $data ) {
+		$this->data = $data;
 	}
 
-	public function nodes( $context ) {
-		if ( empty( $context['is_singular'] ) || 'product' !== get_post_type( $context['post_id'] ) ) {
-			return array();
-		}
-		if ( ! $this->woo->available() ) {
-			return array();
-		}
+	public function nodes() {
+		if ( ! $this->data->is_product_context() ) { return array(); }
 
-		$d = $this->woo->product_data( $context['post_id'] );
-		if ( empty( $d ) ) { return array(); }
+		$p = $this->data->info();
+		if ( empty( $p ) ) { return array(); }
 
-		$offers = array(
+		$perma = get_permalink( $p['id'] );
+		$id    = trailingslashit( $perma ) . '#product';
+
+		$offer = array(
 			'@type'         => 'Offer',
-			'price'         => (string) $d['price'],
-			'priceCurrency' => $d['currency'],
-			'url'           => $d['url'],
-			'availability'  => $d['in_stock'] ? 'https://schema.org/InStock' : 'https://schema.org/OutOfStock',
+			'price'         => isset( $p['price'] ) ? (string) $p['price'] : '',
+			'priceCurrency' => isset( $p['currency'] ) ? (string) $p['currency'] : '',
+			'availability'  => isset( $p['availability'] ) ? (string) $p['availability'] : '',
+			'url'           => $perma,
 		);
 
 		$node = array(
-			'@type' => 'Product',
-			'@id'   => trailingslashit( $d['url'] ) . '#product',
-			'name'  => $d['name'],
-			'url'   => $d['url'],
-			'image' => $d['image'] ? array( $d['image'] ) : array(),
-			'sku'   => $d['sku'],
-			'offers'=> $offers,
+			'@type'        => 'Product',
+			'@id'          => $id,
+			'name'         => $p['name'],
+			'description'  => $p['description'],
+			'sku'          => $p['sku'],
+			'url'          => $perma,
+			'image'        => $p['images'], // array of URLs
+			'offers'       => $offer,
 		);
 
-		if ( ! empty( $d['brand'] ) ) {
-			$node['brand'] = array( '@type' => 'Brand', 'name' => $d['brand'] );
+		if ( ! empty( $p['brand'] ) ) {
+			$node['brand'] = array( '@type' => 'Brand', 'name' => $p['brand'] );
 		}
-		if ( ! empty( $d['gtin'] ) ) {
-			$node['gtin13'] = $d['gtin'];
-		}
-		if ( $d['rating'] ) {
-			$node['aggregateRating'] = array(
-				'@type'       => 'AggregateRating',
-				'ratingValue' => (string) $d['rating'],
-				'reviewCount' => (int) $d['reviewCount'],
-			);
-		}
+
+		$node = apply_filters( 'keystone/schema/product', $node, $p );
 
 		return array( $node );
 	}

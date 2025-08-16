@@ -1,64 +1,64 @@
 <?php
 namespace Keystone\Schema;
 
-use Keystone\Schema\Contracts\SchemaProviderInterface;
+use Keystone\Schema\Contracts\ProviderInterface;
 
 if ( ! defined( 'ABSPATH' ) ) { exit; }
 
 /**
- * Collects schema nodes from providers and prints a single JSON-LD script.
+ * Collects schema nodes from registered providers and outputs a single JSON-LD graph.
+ *
+ * - Providers are added via add_provider().
+ * - Nodes are merged by @id (later nodes overwrite earlier ones).
+ * - Output hooked via wp_head by Keystone\Keystone wiring.
  */
 class GraphBuilder {
-	/** @var SchemaProviderInterface[] */
-	protected $providers = array();
-
 	/** @var array */
 	protected $settings = array();
+
+	/** @var ProviderInterface[] */
+	protected $providers = array();
 
 	public function __construct( $settings = array() ) {
 		$this->settings = is_array( $settings ) ? $settings : array();
 	}
 
-	/**
-	 * Register a provider.
-	 *
-	 * @param SchemaProviderInterface $p Provider.
-	 * @return void
-	 */
-	public function add_provider( SchemaProviderInterface $p ) {
+	/** Register a provider instance. */
+	public function add_provider( ProviderInterface $p ) {
 		$this->providers[] = $p;
 	}
 
-	/**
-	 * Action: output consolidated JSON-LD in <head>.
-	 *
-	 * @return void
-	 */
+	/** Aggregate providers and echo a single <script type="application/ld+json"> */
 	public function output() {
-		$context = array(
-			'post_id'     => is_singular() ? get_queried_object_id() : 0,
-			'is_singular' => is_singular(),
-			'is_home'     => is_front_page(),
-			'settings'    => $this->settings,
-		);
+		$nodes = array();
 
-		$graph = array();
 		foreach ( $this->providers as $p ) {
-			$nodes = $p->nodes( $context );
-			if ( ! empty( $nodes ) ) {
-				$graph = array_merge( $graph, $nodes );
+			$list = (array) $p->nodes();
+			foreach ( $list as $node ) {
+				if ( ! is_array( $node ) || empty( $node['@type'] ) ) {
+					continue;
+				}
+				$id = isset( $node['@id'] ) ? (string) $node['@id'] : '';
+				if ( $id ) {
+					$nodes[ $id ] = isset( $nodes[ $id ] )
+						? array_merge( $nodes[ $id ], $node )
+						: $node;
+				} else {
+					$nodes[] = $node;
+				}
 			}
 		}
 
-		if ( empty( $graph ) ) {
-			return;
-		}
+		// Permit filtering final nodes.
+		$nodes = apply_filters( 'keystone/schema/nodes', array_values( $nodes ), $this->settings );
+
+		if ( empty( $nodes ) ) { return; }
 
 		$payload = array(
 			'@context' => 'https://schema.org',
-			'@graph'   => $graph,
+			'@graph'   => array_values( $nodes ),
 		);
 
-		echo "\n" . '<script type="application/ld+json">' . wp_json_encode( $payload ) . '</script>' . "\n";
+		echo '<script type="application/ld+json">' . wp_json_encode( $payload ) . '</script>' . "\n"; // phpcs:ignore
 	}
 }
