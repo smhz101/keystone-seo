@@ -2,7 +2,7 @@
 /**
  * Plugin Name: Keystone SEO
  * Description: Developer-first, modular SEO suite for WordPress. Free & powerful.
- * Version: 0.1.0
+ * Version: 1.8.0
  * Author: Keystone
  * Text Domain: keystone-seo
  * Requires at least: 5.8
@@ -19,7 +19,7 @@ if ( ! defined( 'ABSPATH' ) ) {
 define( 'KEYSTONE_SEO_FILE', __FILE__ );
 define( 'KEYSTONE_SEO_DIR', plugin_dir_path( __FILE__ ) );
 define( 'KEYSTONE_SEO_URL', plugin_dir_url( __FILE__ ) );
-define( 'KEYSTONE_SEO_VERSION', '0.1.0' );
+define( 'KEYSTONE_SEO_VERSION', '1.8.0' );
 
 // Composer autoload (optional but supported).
 $autoload = KEYSTONE_SEO_DIR . 'vendor/autoload.php';

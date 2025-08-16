@@ -4,6 +4,7 @@ namespace Keystone\Cli;
 use Keystone\Sitemap\Registry as SitemapRegistry;
 use Keystone\Redirects\RedirectRepository;
 use Keystone\Monitor\NotFoundRepository;
+use Keystone\IndexNow\IndexNowService;
 
 if ( ! defined( 'ABSPATH' ) ) { exit; }
 
@@ -23,6 +24,9 @@ class Commands {
 	/** @var NotFoundRepository|null */
 	protected $nf;
 
+	/** @var IndexNowService|null */
+	protected $indexnow;
+
 	/**
 	 * Inject services for CLI.
 	 *
@@ -34,6 +38,7 @@ class Commands {
 		$this->registry  = $registry;
 		$this->redirects = $redirects;
 		$this->nf        = $nf;
+		$this->indexnow  = $indexnow;
 	}
 
 	/** Register WP-CLI commands. */
@@ -45,6 +50,7 @@ class Commands {
 		\WP_CLI::add_command( 'keystone redirects:export', array( $this, 'cmd_redirects_export' ) );
 		\WP_CLI::add_command( 'keystone 404:top', array( $this, 'cmd_nf_top' ) );
 		\WP_CLI::add_command( 'keystone 404:clear', array( $this, 'cmd_nf_clear' ) );
+		\WP_CLI::add_command( 'keystone indexnow:ping', array( $this, 'cmd_indexnow_ping' ) );
 	}
 
 	/**
@@ -103,5 +109,14 @@ class Commands {
 		if ( ! $this->nf ) { \WP_CLI::error( 'NotFoundRepository not bound.' ); }
 		$this->nf->clear();
 		\WP_CLI::success( 'Cleared 404 log.' );
+	}
+
+	/** --url=<absolute_url> */
+	public function cmd_indexnow_ping( $args, $assoc ) {
+		if ( ! $this->indexnow ) { \WP_CLI::error( 'IndexNowService not bound.' ); }
+		$u = isset( $assoc['url'] ) ? (string) $assoc['url'] : '';
+		if ( ! $u ) { \WP_CLI::error( 'Provide --url=https://example.com/path' ); }
+		$this->indexnow->ping_url( $u );
+		\WP_CLI::success( 'Pinged IndexNow endpoints.' );
 	}
 }

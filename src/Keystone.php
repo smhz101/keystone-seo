@@ -29,6 +29,7 @@ use Keystone\Redirects\Admin\RedirectsPage;
 use Keystone\Redirects\Rest\RedirectsController as RedirectsRest;
 
 use Keystone\IndexNow\IndexNowService;
+use Keystone\IndexNow\KeyRoute;
 
 use Keystone\Schema\GraphBuilder;
 use Keystone\Schema\Providers\OrganizationProvider;
@@ -151,7 +152,12 @@ class Keystone {
 		$this->c->bind( 'redirects.rest', function ( $c ) { return new RedirectsRest( $c->make( 'caps' ), $c->make( 'nonce' ), $c->make( 'redirect.repo' ) ); } );
 
 		// IndexNow.
-		$this->c->bind( 'indexnow', function ( $c ) { return new IndexNowService( $c->make( 'settings' ) ); } );
+		$this->c->bind( 'indexnow', function ( $c ) {
+			return new IndexNowService( $c->make( 'settings' ) );
+		} );
+		$this->c->bind( 'indexnow.keyroute', function ( $c ) {
+			return new KeyRoute( $c->make( 'indexnow' ) ); 
+		} );
 
 		// Schema.
 		$this->c->bind( 'schema.graph', function ( $c ) {
@@ -185,7 +191,8 @@ class Keystone {
 			return new Commands( 
 				$c->make( 'sitemap.registry' ), 
 				$c->make( 'redirect.repo' ), 
-				$c->make( 'nf.repo' ) 
+				$c->make( 'nf.repo' ),
+				$c->make( 'indexnow' )
 			);
 		} );
 	}
@@ -195,6 +202,8 @@ class Keystone {
 		$this->c->make( 'nf.repo' )->migrate();
 		$this->c->make( 'sitemap.controller' )->add_rewrite_rules();
 	 	$this->c->make( 'og.gen' )->add_rewrite_rules();
+		$this->c->make( 'indexnow' )->maybe_write_key_file();
+		$this->c->make( 'indexnow.keyroute' )->add_rewrite_rules();
 
 		update_option( 'keystone_flush_rewrites', 1 );
 	}
@@ -247,9 +256,13 @@ class Keystone {
 		$this->hooks->action( 'template_redirect', $this->c->make( 'redirect.manager' ), 'maybe_redirect', 0, 0 );
 		$this->hooks->action( 'template_redirect', $this->c->make( 'nf.monitor' ), 'maybe_log', 9999, 0 );
 
-		// IndexNow.
+		// IndexNow hooks
 		$this->hooks->action( 'transition_post_status', $this->c->make( 'indexnow' ), 'on_transition_post_status', 10, 3 );
 		$this->hooks->action( 'deleted_post', $this->c->make( 'indexnow' ), 'on_deleted_post', 10, 1 );
+
+		// IndexNow key route
+		$this->hooks->action( 'init', $this->c->make( 'indexnow.keyroute' ), 'add_rewrite_rules' );
+		$this->hooks->action( 'template_redirect', $this->c->make( 'indexnow.keyroute' ), 'maybe_render_key', 0, 0 );
 
 		// CLI.
 		$this->c->make( 'cli.commands' )->register();

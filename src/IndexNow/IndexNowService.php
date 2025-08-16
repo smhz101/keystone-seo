@@ -4,86 +4,114 @@ namespace Keystone\IndexNow;
 if ( ! defined( 'ABSPATH' ) ) { exit; }
 
 /**
- * IndexNow pings on publish/update/delete (opt-in).
- * Uses the gateway endpoint https://api.indexnow.org/indexnow
- * Payload: { host, key, urlList[] } per spec.
+ * IndexNow integration:
+ * - Generates & exposes the key (file or dynamic route fallback).
+ * - Pings engines on publish/update/delete.
+ * - Rate-limited with transients to avoid abuse.
+ *
+ * Settings keys used:
+ *  - indexnow_enabled (bool)
+ *  - indexnow_key (hex string)
+ *  - indexnow_endpoints (string[] URLs)
  */
 class IndexNowService {
-	/** @var array */
-	protected $settings;
+	protected $settings = array();
 
 	public function __construct( $settings = array() ) {
 		$this->settings = is_array( $settings ) ? $settings : array();
 	}
 
-	/**
-	 * Whether IndexNow is enabled and key present.
-	 *
-	 * @return bool
-	 */
-	protected function enabled() {
-		return ! empty( $this->settings['indexnow'] ) && ! empty( $this->settings['indexnowKey'] );
+	/** Ensure a key exists; return it. */
+	public function ensure_key() {
+		$key = isset( $this->settings['indexnow_key'] ) ? (string) $this->settings['indexnow_key'] : '';
+		if ( $key && preg_match( '/^[a-f0-9]{32}$/i', $key ) ) { return strtolower( $key ); }
+
+		$key = strtolower( wp_generate_password( 32, false, false ) );
+		$key = preg_replace( '/[^a-f0-9]/i', 'a', $key ); // sanitize to hex-like
+
+		$opts = get_option( 'keystone_seo_settings', array() );
+		$opts['indexnow_key'] = $key;
+		update_option( 'keystone_seo_settings', $opts );
+
+		$this->settings['indexnow_key'] = $key;
+		return $key;
 	}
 
-	/**
-	 * Handle post transitions; ping on publish/updates of public posts.
-	 *
-	 * @param string  $new_status New status.
-	 * @param string  $old_status Old status.
-	 * @param \WP_Post $post      Post object.
-	 * @return void
-	 */
-	public function on_transition_post_status( $new_status, $old_status, $post ) {
-		if ( ! $this->enabled() ) { return; }
-		if ( 'publish' !== $new_status ) { return; }
-		if ( 'revision' === $post->post_type ) { return; }
-		if ( 'auto-draft' === $old_status && 'publish' === $new_status ) { /* first publish OK */ }
+	/** Try to write {key}.txt at ABSPATH. Returns absolute path or empty. */
+	public function maybe_write_key_file() {
+		$key = $this->ensure_key();
+		$target = trailingslashit( ABSPATH ) . $key . '.txt';
 
-		if ( 'publish' === $new_status ) {
-			$url = get_permalink( $post );
-			if ( $url ) {
-				$this->ping_urls( array( $url ) );
-			}
+		// Already present?
+		if ( file_exists( $target ) ) { return $target; }
+
+		// Attempt to write.
+		$written = @file_put_contents( $target, $key ); // phpcs:ignore
+		if ( false !== $written ) { return $target; }
+
+		return ''; // fall back to dynamic route
+	}
+
+	/** Transition hook: ping on publish/update. */
+	public function on_transition_post_status( $new_status, $old_status, $post ) {
+		if ( ! $this->is_enabled() ) { return; }
+		if ( 'publish' !== $new_status ) { return; }
+
+		$url = get_permalink( $post->ID );
+		$this->ping_url( $url );
+	}
+
+	/** Deletion hook: ping removed URL (engines will recrawl). */
+	public function on_deleted_post( $post_id ) {
+		if ( ! $this->is_enabled() ) { return; }
+		$url = get_permalink( $post_id );
+		if ( $url ) { $this->ping_url( $url ); }
+	}
+
+	/** Public method: ping a URL to all configured endpoints (rate-limited). */
+	public function ping_url( $url ) {
+		$url = esc_url_raw( $url );
+		if ( ! $url ) { return; }
+		if ( ! $this->is_enabled() ) { return; }
+
+		$key = $this->ensure_key();
+
+		// Rate limit: 1 request per 5 seconds per endpoint.
+		$endpoints = $this->endpoints();
+		foreach ( $endpoints as $ep ) {
+			$stamp_key = 'kseo_ix_rl_' . md5( $ep );
+			if ( get_transient( $stamp_key ) ) { continue; }
+			set_transient( $stamp_key, 1, 5 );
+
+			$ping = add_query_arg( array(
+				'url' => rawurlencode( $url ),
+				'key' => $key,
+			), $ep );
+
+			// GET (simple). Engines also support POST batches; we keep it lean.
+			$args = array(
+				'timeout' => 5,
+				'headers' => array( 'Accept' => 'application/json' ),
+				'redirection' => 3,
+			);
+			wp_remote_get( $ping, $args );
 		}
 	}
 
-	/**
-	 * Ping on delete (send homepage to signal re-crawl).
-	 *
-	 * @param int $post_id Deleted post ID.
-	 * @return void
-	 */
-	public function on_deleted_post( $post_id ) {
-		if ( ! $this->enabled() ) { return; }
-		$this->ping_urls( array( home_url( '/' ) ) );
+	/** Helper: enabled flag */
+	protected function is_enabled() {
+		return ! empty( $this->settings['indexnow_enabled'] );
 	}
 
-	/**
-	 * Send IndexNow request (fire-and-forget with small timeout).
-	 *
-	 * @param string[] $urls URLs to ping.
-	 * @return void
-	 */
-	public function ping_urls( $urls ) {
-		$urls = array_values( array_filter( array_map( 'esc_url_raw', (array) $urls ) ) );
-		if ( empty( $urls ) ) { return; }
-
-		$host = wp_parse_url( home_url(), PHP_URL_HOST );
-		$key  = sanitize_text_field( $this->settings['indexnowKey'] );
-
-		$body = array(
-			'host'     => $host,
-			'key'      => $key,
-			'urlList'  => $urls,
-		);
-
-		wp_remote_post(
-			'https://api.indexnow.org/indexnow',
-			array(
-				'timeout' => 2,
-				'headers' => array( 'Content-Type' => 'application/json' ),
-				'body'    => wp_json_encode( $body ),
-			)
-		);
+	/** Helper: endpoints (defaults to Bing). */
+	protected function endpoints() {
+		$eps = isset( $this->settings['indexnow_endpoints'] ) && is_array( $this->settings['indexnow_endpoints'] )
+			? $this->settings['indexnow_endpoints']
+			: array();
+		$eps = array_filter( array_map( 'esc_url_raw', $eps ) );
+		if ( empty( $eps ) ) {
+			$eps = array( 'https://www.bing.com/indexnow' );
+		}
+		return array_values( array_unique( $eps ) );
 	}
 }

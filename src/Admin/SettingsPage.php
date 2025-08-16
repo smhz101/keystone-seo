@@ -33,8 +33,9 @@ class SettingsPage {
 
 		$defaults = array(
 			'site_name'      => get_bloginfo( 'name' ),
-			'indexnow'       => false,
-			'indexnowKey'    => '',
+			'indexnow_enabled'   => false,
+			'indexnow_key'       => '',
+			'indexnow_endpoints' => array(),
 			'org_name'       => get_bloginfo( 'name' ),
 			'org_logo'       => '',
 			'org_url'        => home_url( '/' ),
@@ -72,10 +73,44 @@ class SettingsPage {
 				<h2 class="title"><?php esc_html_e( 'IndexNow', 'keystone-seo' ); ?></h2>
 				<table class="form-table" role="presentation">
 					<tr>
-						<th scope="row"><?php esc_html_e( 'IndexNow', 'keystone-seo' ); ?></th>
+						<th scope="row"><?php esc_html_e( 'Enable IndexNow', 'keystone-seo' ); ?></th>
 						<td>
-							<label><input type="checkbox" name="indexnow" value="1" <?php checked( (bool) $settings['indexnow'] ); ?>> <?php esc_html_e( 'Enable IndexNow Pings', 'keystone-seo' ); ?></label><br>
-							<input type="text" name="indexnowKey" class="regular-text" placeholder="<?php esc_attr_e( 'IndexNow Key', 'keystone-seo' ); ?>" value="<?php echo esc_attr( $settings['indexnowKey'] ); ?>">
+							<label>
+								<input type="checkbox" name="indexnow_enabled" value="1" <?php checked( ! empty( $settings['indexnow_enabled'] ) ); ?> />
+								<?php esc_html_e( 'Ping search engines when content is published/updated/deleted', 'keystone-seo' ); ?>
+							</label>
+						</td>
+					</tr>
+					<tr>
+						<th scope="row"><?php esc_html_e( 'Key', 'keystone-seo' ); ?></th>
+						<td>
+							<input type="text" name="indexnow_key" value="<?php echo esc_attr( (string) $settings['indexnow_key'] ); ?>" class="regular-text" maxlength="64" />
+							<p class="description">
+								<?php esc_html_e( 'If empty, Keystone will generate one and try to write {key}.txt at the site root; otherwise a dynamic route will serve it.', 'keystone-seo' ); ?>
+							</p>
+						</td>
+					</tr>
+					<tr>
+						<th scope="row"><?php esc_html_e( 'Endpoints', 'keystone-seo' ); ?></th>
+						<td>
+							<textarea name="indexnow_endpoints" rows="3" class="large-text" placeholder="https://www.bing.com/indexnow"><?php
+								echo esc_textarea( implode( "\n", (array) $settings['indexnow_endpoints'] ) );
+							?></textarea>
+							<p class="description"><?php esc_html_e( 'One URL per line. Default will be used if left empty.', 'keystone-seo' ); ?></p>
+						</td>
+					</tr>
+					<tr>
+						<th scope="row"><?php esc_html_e( 'Key File Status', 'keystone-seo' ); ?></th>
+						<td>
+							<?php
+							$key = isset( $settings['indexnow_key'] ) ? $settings['indexnow_key'] : '';
+							if ( $key ) {
+								$link = home_url( '/' . $key . '.txt' );
+								echo '<code>' . esc_html( $link ) . '</code>';
+							} else {
+								esc_html_e( 'Key will be generated after saving.', 'keystone-seo' );
+							}
+							?>
 						</td>
 					</tr>
 				</table>
@@ -199,10 +234,24 @@ class SettingsPage {
 			}
 		}
 
+		$k  = isset( $_POST['indexnow_key'] ) ? sanitize_text_field( wp_unslash( $_POST['indexnow_key'] ) ) : '';
+		$k  = strtolower( preg_replace( '/[^a-f0-9]/i', '', $k ) );
+		if ( $k && strlen( $k ) !== 32 ) { $k = ''; } // enforce 32 hex
+
+		$eps = array();
+		if ( isset( $_POST['indexnow_endpoints'] ) ) { // phpcs:ignore
+			$lines = explode( "\n", wp_unslash( $_POST['indexnow_endpoints'] ) ); // phpcs:ignore
+			foreach ( $lines as $l ) {
+				$l = trim( $l );
+				if ( $l ) { $eps[] = esc_url_raw( $l ); }
+			}
+		}
+
 		$data = array(
 			'site_name'      		=> isset( $_POST['site_name'] ) ? sanitize_text_field( wp_unslash( $_POST['site_name'] ) ) : '',
-			'indexnow'       		=> isset( $_POST['indexnow'] ) ? (bool) absint( $_POST['indexnow'] ) : false,
-			'indexnowKey'    		=> isset( $_POST['indexnowKey'] ) ? sanitize_text_field( wp_unslash( $_POST['indexnowKey'] ) ) : '',
+			'indexnow_enabled'	=> isset( $_POST['indexnow_enabled'] ) ? (bool) absint( $_POST['indexnow_enabled'] ) : false,
+			'indexnow_key'    	=> $k,
+			'indexnow_endpoints'=> array_values( array_unique( array_filter( $eps ) ) ),
 			'org_name'       		=> isset( $_POST['org_name'] ) ? sanitize_text_field( wp_unslash( $_POST['org_name'] ) ) : '',
 			'org_logo'       		=> isset( $_POST['org_logo'] ) ? esc_url_raw( wp_unslash( $_POST['org_logo'] ) ) : '',
 			'org_url'        		=> isset( $_POST['org_url'] ) ? esc_url_raw( wp_unslash( $_POST['org_url'] ) ) : '',
