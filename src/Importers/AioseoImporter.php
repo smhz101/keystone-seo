@@ -95,10 +95,12 @@ class AioseoImporter implements ImporterInterface {
 
 		return array( 'imported' => $imported, 'skipped' => $skipped );
 	}
-
+	
 	protected function has_table( $table ) {
 		global $wpdb;
-		return strtolower( $wpdb->get_var( $wpdb->prepare( 'SHOW TABLES LIKE %s', $table ) ) ) === strtolower( $table );
+		$val = $wpdb->get_var( $wpdb->prepare( 'SHOW TABLES LIKE %s', $table ) );
+		// If table is missing, $val is null; compare safely.
+		return is_string( $val ) && strcasecmp( $val, (string) $table ) === 0;
 	}
 
 	protected function set_meta( $post_id, $key, $value ) {
