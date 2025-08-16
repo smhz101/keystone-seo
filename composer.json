@@ -1,0 +1,23 @@
+{
+  "name": "keystone/keystone-seo",
+  "description": "Keystone SEO — modern, modular, developer-first SEO for WordPress.",
+  "type": "wordpress-plugin",
+  "license": "GPL-2.0-or-later",
+  "require": {
+    "php": ">=8.1"
+  },
+  "autoload": {
+    "psr-4": {
+      "Keystone\\Keystone\\": "src/"
+    }
+  },
+  "require-dev": {
+    "phpcompatibility/php-compatibility": "^9.3",
+    "squizlabs/php_codesniffer": "^3.9",
+    "wp-coding-standards/wpcs": "^3.0"
+  },
+  "scripts": {
+    "lint": "phpcs --standard=phpcs.xml",
+    "fix": "phpcbf --standard=phpcs.xml"
+  }
+}
