@@ -49,6 +49,7 @@ class SettingsPage {
 			'og_fg'            => '',
 			'sm_include_cpt'  => array(),
 			'sm_include_tax'  => array(),
+			'compat_suppress_plugins' => '',
 		);
 		$settings = wp_parse_args( get_option( $this->option_key, array() ), $defaults );
 
@@ -212,6 +213,22 @@ class SettingsPage {
 					</tr>
 				</table>
 
+				<h2 class="title"><?php esc_html_e( 'Compatibility', 'keystone-seo' ); ?></h2>
+				<table class="form-table" role="presentation">
+					<tr>
+						<th scope="row"><?php esc_html_e( 'Suppress other SEO plugins', 'keystone-seo' ); ?></th>
+						<td>
+							<label>
+								<input type="checkbox" name="compat_suppress_plugins" value="1" <?php checked( $settings['compat_suppress_plugins'] ); ?> />
+								<?php esc_html_e( 'Prevent Yoast, Rank Math, and AIOSEO from outputting duplicate tags (recommended if Keystone is active).', 'keystone-seo' ); ?>
+							</label>
+							<p class="description">
+								<?php esc_html_e( 'You can still keep other plugins active for non-SEO features; this only suppresses their head tags.', 'keystone-seo' ); ?>
+							</p>
+						</td>
+					</tr>
+				</table>
+
 				<?php submit_button( __( 'Save Settings', 'keystone-seo' ), 'primary', 'keystone_save_settings' ); ?>
 			</form>
 		</div>
@@ -262,7 +279,8 @@ class SettingsPage {
 			'og_default_image' 	=> isset( $_POST['og_default_image'] ) ? esc_url_raw( wp_unslash( $_POST['og_default_image'] ) ) : '',
 			'og_use_generator' 	=> isset( $_POST['og_use_generator'] ) ? (bool) absint( $_POST['og_use_generator'] ) : false,
 			'og_bg' 						=> isset( $_POST['og_bg'] ) ? sanitize_text_field( wp_unslash( $_POST['og_bg'] ) ) : '',
-			'og_fg' 						=> isset( $_POST['og_fg'] ) ? sanitize_text_field( wp_unslash( $_POST['og_fg'] ) ) : ''
+			'og_fg' 						=> isset( $_POST['og_fg'] ) ? sanitize_text_field( wp_unslash( $_POST['og_fg'] ) ) : '',
+			'compat_suppress_plugins' => isset( $_POST['compat_suppress_plugins'] ) ? (bool) absint( $_POST['compat_suppress_plugins'] ) : ''
 		);
 
 		$data['sm_include_cpt'] = array();
