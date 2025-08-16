@@ -12,7 +12,6 @@ if ( ! defined( 'ABSPATH' ) ) { exit; }
  * Admin UI for managing redirects.
  */
 class RedirectsPage {
-
 	protected $caps;
 	protected $nonce;
 	protected $repo;

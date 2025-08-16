@@ -9,7 +9,6 @@ if ( ! defined( 'ABSPATH' ) ) { exit; }
  * Table: wp_keystone_redirects
  */
 class RedirectRepository {
-
 	protected $table;
 
 	public function __construct() {

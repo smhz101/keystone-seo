@@ -16,7 +16,6 @@ if ( ! defined( 'ABSPATH' ) ) { exit; }
  * DELETE /keystone/v1/redirects/{id}
  */
 class RedirectsController {
-
 	protected $namespace = 'keystone/v1';
 	protected $caps;
 	protected $nonce;

@@ -11,7 +11,6 @@ if ( ! class_exists( '\WP_List_Table' ) ) {
  * Admin list table for redirects.
  */
 class RedirectListTable extends \WP_List_Table {
-
 	protected $repo;
 
 	public function __construct( RedirectRepository $repo ) {
