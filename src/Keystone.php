@@ -19,6 +19,7 @@ use Keystone\Meta\Templates;
 use Keystone\Meta\Providers\PostTokenProvider;
 
 use Keystone\Robots\RobotsController;
+use Keystone\Robots\Admin\RobotsPage;
 
 use Keystone\Sitemap\SitemapProvider;
 use Keystone\Sitemap\SitemapController;
@@ -44,6 +45,7 @@ use Keystone\Hreflang\Adapters\PolylangAdapter;
 
 use Keystone\Monitor\NotFoundRepository;
 use Keystone\Monitor\NotFoundMonitor;
+use Keystone\Monitor\Admin\NotFoundPage;
 
 use Keystone\Cli\Commands;
 
@@ -72,7 +74,8 @@ class Keystone {
 		} );
 
 		// Robots.
-		$this->c->bind( 'robots', new RobotsController() );
+		$this->c->bind( 'robots', function ( $c ) { return new RobotsController( $c->make( 'settings' ) ); } );
+		$this->c->bind( 'robots.page', function ( $c ) { return new RobotsPage( $c->make( 'caps' ), $c->make( 'nonce' ) ); } );
 
 		// Sitemaps.
 		$this->c->bind( 'sitemap.provider', new SitemapProvider() );
@@ -105,6 +108,7 @@ class Keystone {
 		// 404 Monitor.
 		$this->c->bind( 'nf.repo', new NotFoundRepository() );
 		$this->c->bind( 'nf.monitor', function ( $c ) { return new NotFoundMonitor( $c->make( 'nf.repo' ) ); } );
+		$this->c->bind( 'nf.page', function ( $c ) { return new NotFoundPage( $c->make( 'caps' ), $c->make( 'nonce' ), $c->make( 'nf.repo' ) ); } );
 
 		// Admin.
 		$this->c->bind( 'admin.settings', function ( $c ) { return new SettingsPage( $c->make( 'caps' ), $c->make( 'nonce' ) ); } );
@@ -114,7 +118,7 @@ class Keystone {
 		$this->c->bind( 'rest.settings', function ( $c ) { return new SettingsController( $c->make( 'caps' ), $c->make( 'nonce' ) ); } );
 
 		// CLI.
-		$this->c->bind( 'cli.commands', function ( $c ) { return new Commands( $c->make( 'sitemap.provider' ), $c->make( 'redirect.repo' ) ); } );
+		$this->c->bind( 'cli.commands', function ( $c ) { return new Commands( $c->make( 'sitemap.provider' ), $c->make( 'redirect.repo' ), $c->make( 'nf.repo' ) ); } );
 	}
 
 	public function activate() {
@@ -126,7 +130,9 @@ class Keystone {
 	public function run() {
 		// Admin menus.
 		$this->hooks->action( 'admin_menu', $this->c->make( 'admin.menu' ), 'register_menu' );
+		$this->hooks->action( 'admin_menu', $this->c->make( 'robots.page' ), 'add_menu' );
 		$this->hooks->action( 'admin_menu', $this->c->make( 'redirects.page' ), 'add_menu' );
+		$this->hooks->action( 'admin_menu', $this->c->make( 'nf.page' ), 'add_menu' );
 
 		// REST.
 		$this->hooks->action( 'rest_api_init', $this->c->make( 'rest.settings' ), 'register_routes' );
