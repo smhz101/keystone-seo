@@ -9,4 +9,11 @@ if ( ! defined( 'ABSPATH' ) ) { exit; }
  * @since 0.1.0
  */
 interface TokenProviderInterface {
+  /**
+	 * Return map of token => value for a given context (post, term, etc.).
+	 *
+	 * @param array $context Context array (e.g., 'post_id', 'type').
+	 * @return array<string,string>
+	 */
+	public function tokens( $context );
 }
