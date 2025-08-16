@@ -1,29 +1,43 @@
 <?php
 /**
  * Plugin Name: Keystone SEO
- * Description: Modern, modular, developer-first SEO for WordPress.
+ * Description: Developer-first, modular SEO suite for WordPress. Free & powerful.
  * Version: 0.1.0
- * Requires PHP: 8.1
- * Requires at least: 6.2
  * Author: Keystone
- * License: GPLv2 or later
  * Text Domain: keystone-seo
+ * Requires at least: 5.8
+ * Requires PHP: 7.2
  */
 
-defined('ABSPATH') || exit;
-
-if (version_compare(PHP_VERSION, '8.1', '<')) {
-  // Fail fast for unsupported PHP.
-  if (is_admin()) {
-    add_action('admin_notices', static function () {
-      echo '<div class="notice notice-error"><p>Keystone SEO requires PHP 8.1+.</p></div>';
-    });
-  }
-  return;
+if ( ! defined( 'ABSPATH' ) ) {
+	exit;
 }
 
-// Composer autoload (optional in .org build; required if using Composer).
-$autoload = __DIR__ . '/vendor/autoload.php';
-if (file_exists($autoload)) {
-  require_once $autoload;
+/**
+ * Constants
+ */
+define( 'KEYSTONE_SEO_FILE', __FILE__ );
+define( 'KEYSTONE_SEO_DIR', plugin_dir_path( __FILE__ ) );
+define( 'KEYSTONE_SEO_URL', plugin_dir_url( __FILE__ ) );
+define( 'KEYSTONE_SEO_VERSION', '0.1.0' );
+
+// Composer autoload (optional but supported).
+$autoload = KEYSTONE_SEO_DIR . 'vendor/autoload.php';
+if ( file_exists( $autoload ) ) {
+	require_once $autoload;
+} else {
+	// Fallback simple autoloader for PSR-4 namespace "Keystone\" -> /src/
+	spl_autoload_register(
+		function ( $class ) {
+			if ( 0 !== strpos( $class, 'Keystone\\' ) ) {
+				return;
+			}
+			$path = KEYSTONE_SEO_DIR . 'src/' . str_replace( array( 'Keystone\\', '\\' ), array( '', '/' ), $class ) . '.php';
+			if ( file_exists( $path ) ) {
+				require_once $path;
+			}
+		}
+	);
 }
+
+use Keystone\Keystone;
