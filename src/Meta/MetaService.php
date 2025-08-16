@@ -6,33 +6,30 @@ use Keystone\Meta\Contracts\TokenProviderInterface;
 if ( ! defined( 'ABSPATH' ) ) { exit; }
 
 /**
- * Generates SEO titles/descriptions and social tags.
- *
- * Hooks:
- * - filter 'document_title_parts'
- * - action 'wp_head' to print OG/Twitter tags
- *
- * @since 0.1.0
+ * Generates SEO titles/descriptions/social tags.
+ * Now supports tokenized templates via Templates engine.
  */
 class MetaService {
-	/** @var TokenProviderInterface[] */
-	protected $providers = array();
+
+	/** @var Templates */
+	protected $templates;
 
 	/** @var array */
 	protected $settings = array();
 
-	public function __construct( $settings = array() ) {
-		$this->settings = is_array( $settings ) ? $settings : array();
+	public function __construct( $settings = array(), Templates $templates = null ) {
+		$this->settings  = is_array( $settings ) ? $settings : array();
+		$this->templates = $templates ?: new Templates();
 	}
 
 	/**
-	 * Register a token provider.
+	 * Allow adding token providers from bootstrap.
 	 *
 	 * @param TokenProviderInterface $provider Provider.
 	 * @return void
 	 */
 	public function add_provider( TokenProviderInterface $provider ) {
-		$this->providers[] = $provider;
+		$this->templates->add_provider( $provider );
 	}
 
 	/**
@@ -42,7 +39,16 @@ class MetaService {
 	 * @return array
 	 */
 	public function filter_document_title( $parts ) {
-		// Example: prepend site name override if set.
+		// Title Template: default "%title% %sep% %sitename%"
+		$template = isset( $this->settings['title_template'] ) && $this->settings['title_template']
+			? $this->settings['title_template']
+			: '%title% %sep% %sitename%';
+
+		$post_id = is_singular() ? get_queried_object_id() : 0;
+		$title   = $this->templates->render( $template, array( 'post_id' => $post_id ) );
+
+		$parts['title'] = $title;
+
 		if ( ! empty( $this->settings['site_name'] ) ) {
 			$parts['site'] = $this->settings['site_name'];
 		}
@@ -50,22 +56,26 @@ class MetaService {
 	}
 
 	/**
-	 * Action: print meta tags in head.
+	 * Action: print meta tags in head (description + OG/Twitter).
 	 *
 	 * @return void
 	 */
 	public function output_head_tags() {
-		$title = wp_get_document_title();
-		$desc  = get_bloginfo( 'description', 'display' );
+		// Description Template: default = tagline (fallback).
+		$template = isset( $this->settings['desc_template'] ) && $this->settings['desc_template']
+			? $this->settings['desc_template']
+			: '%tagline%';
+
+		$post_id = is_singular() ? get_queried_object_id() : 0;
+		$title   = wp_get_document_title();
+		$desc    = $this->templates->render( $template, array( 'post_id' => $post_id ) );
 
 		echo "\n" . '<meta name="description" content="' . esc_attr( $desc ) . '">' . "\n";
-		// Open Graph
 		echo '<meta property="og:title" content="' . esc_attr( $title ) . '">' . "\n";
 		echo '<meta property="og:description" content="' . esc_attr( $desc ) . '">' . "\n";
-		echo '<meta property="og:type" content="website">' . "\n";
-		// Twitter
+		echo '<meta property="og:type" content="' . esc_attr( is_singular() ? 'article' : 'website' ) . '">' . "\n";
 		echo '<meta name="twitter:card" content="summary_large_image">' . "\n";
 		echo '<meta name="twitter:title" content="' . esc_attr( $title ) . '">' . "\n";
 		echo '<meta name="twitter:description" content="' . esc_attr( $desc ) . '">' . "\n";
-	}  
+	}
 }
