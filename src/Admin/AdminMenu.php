@@ -11,11 +11,15 @@ if ( ! defined( 'ABSPATH' ) ) { exit; }
  * @since 0.1.0
  */
 class AdminMenu {
-  /** @var Capabilities */
+	/** @var Capabilities */
 	protected $caps;
 
-  public function __construct( Capabilities $caps ) {
-		$this->caps = $caps;
+	/** @var SettingsPage */
+	protected $settings_page;
+
+	public function __construct( Capabilities $caps, SettingsPage $settings_page ) {
+		$this->caps          = $caps;
+		$this->settings_page = $settings_page;
 	}
 
 	/**
@@ -29,7 +33,7 @@ class AdminMenu {
 			'Keystone SEO',
 			$this->caps->manage_settings_cap(),
 			'keystone-seo',
-			'render_page',
+			array( $this->settings_page, 'render' ),
 			'dashicons-shield-alt',
 			58
 		);
