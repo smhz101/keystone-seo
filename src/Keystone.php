@@ -21,7 +21,6 @@ use Keystone\Meta\Providers\PostTokenProvider;
 use Keystone\Robots\RobotsController;
 use Keystone\Robots\Admin\RobotsPage;
 
-use Keystone\Sitemap\SitemapProvider;
 use Keystone\Sitemap\SitemapController;
 
 use Keystone\Redirects\RedirectRepository;
@@ -56,6 +55,11 @@ use Keystone\Hreflang\Adapters\PolylangAdapter;
 use Keystone\Monitor\NotFoundRepository;
 use Keystone\Monitor\NotFoundMonitor;
 use Keystone\Monitor\Admin\NotFoundPage;
+
+use Keystone\Sitemap\Registry as SitemapRegistry;
+use Keystone\Sitemap\Providers\PostTypeSource;
+use Keystone\Sitemap\Providers\TaxonomySource;
+use Keystone\Sitemap\CacheInvalidator;
 
 use Keystone\Cli\Commands;
 
@@ -113,8 +117,32 @@ class Keystone {
 		$this->c->bind( 'robots.page', function ( $c ) { return new RobotsPage( $c->make( 'caps' ), $c->make( 'nonce' ) ); } );
 
 		// Sitemaps.
-		$this->c->bind( 'sitemap.provider', new SitemapProvider() );
-		$this->c->bind( 'sitemap.controller', function ( $c ) { return new SitemapController( $c->make( 'sitemap.provider' ) ); } );
+		$this->c->bind( 'sitemap.registry', new SitemapRegistry() );
+		$this->c->bind( 'sitemap.controller', function ( $c ) {
+			return new SitemapController( $c->make( 'sitemap.registry' ) );
+		} );
+
+		// Register default sources (Posts/Pages + Category/Tag)
+		$this->c->make( 'sitemap.registry' )->add( new PostTypeSource( 'post' ) );
+		$this->c->make( 'sitemap.registry' )->add( new PostTypeSource( 'page' ) );
+		$this->c->make( 'sitemap.registry' )->add( new TaxonomySource( 'category' ) );
+		$this->c->make( 'sitemap.registry' )->add( new TaxonomySource( 'post_tag' ) );
+
+		// Register CPT/tax from settings
+		$__ks_settings = $this->c->make( 'settings' );
+		if ( ! empty( $__ks_settings['sm_include_cpt'] ) ) {
+			foreach ( (array) $__ks_settings['sm_include_cpt'] as $pt ) {
+				$this->c->make( 'sitemap.registry' )->add( new PostTypeSource( $pt ) );
+			}
+		}
+		if ( ! empty( $__ks_settings['sm_include_tax'] ) ) {
+			foreach ( (array) $__ks_settings['sm_include_tax'] as $tx ) {
+				$this->c->make( 'sitemap.registry' )->add( new TaxonomySource( $tx ) );
+			}
+		}
+
+		// Sitemap cache invalidator
+		$this->c->bind( 'sitemap.invalidator', new CacheInvalidator() );
 
 		// Redirects.
 		$this->c->bind( 'redirect.repo', new RedirectRepository() );
@@ -152,16 +180,23 @@ class Keystone {
 		// REST.
 		$this->c->bind( 'rest.settings', function ( $c ) { return new SettingsController( $c->make( 'caps' ), $c->make( 'nonce' ) ); } );
 
-		// CLI.
-		$this->c->bind( 'cli.commands', function ( $c ) { return new Commands( $c->make( 'sitemap.provider' ), $c->make( 'redirect.repo' ), $c->make( 'nf.repo' ) ); } );
+		// CLI. 
+		$this->c->bind( 'cli.commands', function ( $c ) {
+			return new Commands( 
+				$c->make( 'sitemap.registry' ), 
+				$c->make( 'redirect.repo' ), 
+				$c->make( 'nf.repo' ) 
+			);
+		} );
 	}
 
 	public function activate() {
 		$this->c->make( 'redirect.repo' )->migrate();
 		$this->c->make( 'nf.repo' )->migrate();
 		$this->c->make( 'sitemap.controller' )->add_rewrite_rules();
-		$this->c->make( 'og.gen' )->add_rewrite_rules();
-		flush_rewrite_rules();
+	 	$this->c->make( 'og.gen' )->add_rewrite_rules();
+
+		update_option( 'keystone_flush_rewrites', 1 );
 	}
 
 	public function run() {
@@ -203,6 +238,11 @@ class Keystone {
 		$this->hooks->action( 'init', $this->c->make( 'sitemap.controller' ), 'add_rewrite_rules' );
 		$this->hooks->action( 'template_redirect', $this->c->make( 'sitemap.controller' ), 'maybe_render' );
 
+		// Invalidation hooks.
+		$this->hooks->action( 'save_post',     $this->c->make( 'sitemap.invalidator' ), 'on_save_post',     10, 1 );
+		$this->hooks->action( 'deleted_post',  $this->c->make( 'sitemap.invalidator' ), 'on_deleted_post',  10, 1 );
+		$this->hooks->action( 'edited_term',   $this->c->make( 'sitemap.invalidator' ), 'on_edited_term',   10, 3 );
+
 		// Redirects + 404 monitor.
 		$this->hooks->action( 'template_redirect', $this->c->make( 'redirect.manager' ), 'maybe_redirect', 0, 0 );
 		$this->hooks->action( 'template_redirect', $this->c->make( 'nf.monitor' ), 'maybe_log', 9999, 0 );
@@ -213,5 +253,18 @@ class Keystone {
 
 		// CLI.
 		$this->c->make( 'cli.commands' )->register();
+
+		// Flush once right after rules are registered.
+		$this->hooks->action( 'init', $this, 'maybe_flush_rewrites', 999, 0 );
+	}
+
+	/** 
+	 * Flush permalinks once if activation requested it. 
+	 */
+	public function maybe_flush_rewrites() {
+		if ( get_option( 'keystone_flush_rewrites' ) ) {
+			flush_rewrite_rules();
+			delete_option( 'keystone_flush_rewrites' );
+		}
 	}
 }
