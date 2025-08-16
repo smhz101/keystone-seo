@@ -1,7 +1,7 @@
 <?php
 namespace Keystone\Cli;
 
-use Keystone\Sitemap\SitemapProvider;
+use Keystone\Sitemap\Registry as SitemapRegistry;
 use Keystone\Redirects\RedirectRepository;
 use Keystone\Monitor\NotFoundRepository;
 
@@ -9,18 +9,34 @@ if ( ! defined( 'ABSPATH' ) ) { exit; }
 
 /**
  * WP-CLI commands for Keystone.
+ *
+ * @command keystone
  */
 class Commands {
-	protected $provider;
+
+	/** @var SitemapRegistry */
+	protected $registry;
+
+	/** @var RedirectRepository|null */
 	protected $redirects;
+
+	/** @var NotFoundRepository|null */
 	protected $nf;
 
-	public function __construct( SitemapProvider $provider, RedirectRepository $redirects = null, NotFoundRepository $nf = null ) {
-		$this->provider  = $provider;
+	/**
+	 * Inject services for CLI.
+	 *
+	 * @param SitemapRegistry        $registry   Sitemap sources registry.
+	 * @param RedirectRepository|null $redirects Redirects repository.
+	 * @param NotFoundRepository|null $nf        404 monitor repository.
+	 */
+	public function __construct( SitemapRegistry $registry, RedirectRepository $redirects = null, NotFoundRepository $nf = null ) {
+		$this->registry  = $registry;
 		$this->redirects = $redirects;
 		$this->nf        = $nf;
 	}
 
+	/** Register WP-CLI commands. */
 	public function register() {
 		if ( ! class_exists( '\WP_CLI' ) ) { return; }
 
@@ -31,8 +47,29 @@ class Commands {
 		\WP_CLI::add_command( 'keystone 404:clear', array( $this, 'cmd_nf_clear' ) );
 	}
 
+	/**
+	 * Print the combined sitemap index XML to STDOUT.
+	 * Usage: wp keystone sitemap:render-index > sitemap.xml
+	 */
 	public function cmd_render_index() {
-		\WP_CLI::line( $this->provider->render_index() );
+		$entries = array();
+		foreach ( $this->registry->all() as $source ) {
+			$entries = array_merge( $entries, (array) $source->index_entries() );
+		}
+
+		ob_start();
+		echo '<?xml version="1.0" encoding="UTF-8"?>' . "\n"; ?>
+<sitemapindex xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
+<?php foreach ( $entries as $e ) : ?>
+	<sitemap>
+		<loc><?php echo esc_url( $e['loc'] ); ?></loc>
+		<lastmod><?php echo esc_html( $e['lastmod'] ); ?></lastmod>
+	</sitemap>
+<?php endforeach; ?>
+</sitemapindex>
+<?php
+		$xml = ob_get_clean();
+		\WP_CLI::line( $xml );
 	}
 
 	/** --file=<path> */
