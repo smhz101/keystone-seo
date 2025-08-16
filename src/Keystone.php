@@ -194,7 +194,7 @@ class Keystone {
 		$this->c->bind( 'rest.settings', function ( $c ) { return new SettingsController( $c->make( 'caps' ), $c->make( 'nonce' ) ); } );
 
 		// Importers
-		$c->bind( 'import.manager', function( Container $c ) {
+		$this->c->bind( 'import.manager', function( $c ) {
 			$mgr = new ImportManager();
 			$mgr->register( new YoastImporter() );
 			$mgr->register( new RankMathImporter() );
@@ -202,20 +202,20 @@ class Keystone {
 			return $mgr;
 		} );
 
-		$c->bind( 'import.page', function( Container $c ) {
+		$this->c->bind( 'import.page', function( $c ) {
 			return new ImportPage( $c->make( 'import.manager' ) );
 		} );
 
 		// Conflicts
-		$c->bind( 'compat.detector', function( Container $c ) {
+		$this->c->bind( 'compat.detector', function( $c ) {
 			return new ConflictDetector();
 		} );
 
 		// CLI. 
 		$this->c->bind( 'cli.commands', function ( $c ) {
-			return new Commands( 
-				$c->make( 'sitemap.registry' ), 
-				$c->make( 'redirect.repo' ), 
+			return new Commands(
+				$c->make( 'sitemap.registry' ),
+				$c->make( 'redirect.repo' ),
 				$c->make( 'nf.repo' ),
 				$c->make( 'indexnow' )
 			);
@@ -290,11 +290,16 @@ class Keystone {
 		$this->hooks->action( 'template_redirect', $this->c->make( 'indexnow.keyroute' ), 'maybe_render_key', 0, 0 );
 
 		// Importers
-		$this->container->make( 'import.page' ); 
-		$this->container->make( 'compat.detector' );
+		$this->c->make( 'import.page' ); 
+		$this->c->make( 'compat.detector' );
 
 		// CLI.
 		$this->c->make( 'cli.commands' )->register();
+
+		// Register importer subcommands for WP-CLI.
+		if ( class_exists( '\WP_CLI' ) ) {
+			$this->c->make( 'cli.commands' )->register_import_subcommands( $this->c->make( 'import.manager' ) );
+		}
 
 		// Flush once right after rules are registered.
 		$this->hooks->action( 'init', $this, 'maybe_flush_rewrites', 999, 0 );
