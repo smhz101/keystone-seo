@@ -1,10 +1,12 @@
 <?php
 namespace Keystone\Cli;
 
+use WP_CLI;
 use Keystone\Sitemap\Registry as SitemapRegistry;
 use Keystone\Redirects\RedirectRepository;
 use Keystone\Monitor\NotFoundRepository;
 use Keystone\IndexNow\IndexNowService;
+use Keystone\Importers\ImportManager;
 
 if ( ! defined( 'ABSPATH' ) ) { exit; }
 
@@ -43,14 +45,43 @@ class Commands {
 
 	/** Register WP-CLI commands. */
 	public function register() {
-		if ( ! class_exists( '\WP_CLI' ) ) { return; }
+		if ( ! class_exists( 'WP_CLI' ) ) { return; }
 
-		\WP_CLI::add_command( 'keystone sitemap:render-index', array( $this, 'cmd_render_index' ) );
-		\WP_CLI::add_command( 'keystone redirects:import', array( $this, 'cmd_redirects_import' ) );
-		\WP_CLI::add_command( 'keystone redirects:export', array( $this, 'cmd_redirects_export' ) );
-		\WP_CLI::add_command( 'keystone 404:top', array( $this, 'cmd_nf_top' ) );
-		\WP_CLI::add_command( 'keystone 404:clear', array( $this, 'cmd_nf_clear' ) );
-		\WP_CLI::add_command( 'keystone indexnow:ping', array( $this, 'cmd_indexnow_ping' ) );
+		WP_CLI::add_command( 'keystone sitemap:render-index', array( $this, 'cmd_render_index' ) );
+		WP_CLI::add_command( 'keystone redirects:import', array( $this, 'cmd_redirects_import' ) );
+		WP_CLI::add_command( 'keystone redirects:export', array( $this, 'cmd_redirects_export' ) );
+		WP_CLI::add_command( 'keystone 404:top', array( $this, 'cmd_nf_top' ) );
+		WP_CLI::add_command( 'keystone 404:clear', array( $this, 'cmd_nf_clear' ) );
+		WP_CLI::add_command( 'keystone indexnow:ping', array( $this, 'cmd_indexnow_ping' ) );
+	}
+
+	/**
+	 * Register import commands.
+	 *
+	 * @param ImportManager $manager
+	 * @return void
+	 */
+	public function register_import_subcommands( ImportManager $manager ) {
+		$that = $this;
+
+		WP_CLI::add_command( 'keystone import', function( $args, $assoc ) use ( $manager, $that ) {
+			$slug   = isset( $assoc['plugin'] ) ? $assoc['plugin'] : '';
+			$limit  = isset( $assoc['limit'] ) ? (int) $assoc['limit'] : 500;
+			$offset = isset( $assoc['offset'] ) ? (int) $assoc['offset'] : 0;
+
+			if ( ! $slug ) {
+				WP_CLI::error( 'Provide --plugin=yoast|rankmath|aioseo' );
+			}
+			$res = $manager->run( $slug, $limit, $offset );
+			WP_CLI::success( sprintf( 'Imported: %d, Skipped: %d', $res['imported'], $res['skipped'] ) );
+		}, array(
+			'shortdesc' => 'Import SEO data from other plugins into Keystone.',
+			'synopsis'  => array(
+				array( 'type' => 'assoc', 'name' => 'plugin', 'description' => 'yoast|rankmath|aioseo', 'optional' => false ),
+				array( 'type' => 'assoc', 'name' => 'limit', 'description' => 'batch size', 'optional' => true ),
+				array( 'type' => 'assoc', 'name' => 'offset', 'description' => 'offset', 'optional' => true ),
+			),
+		) );
 	}
 
 	/**
