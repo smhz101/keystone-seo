@@ -15,6 +15,8 @@ use Keystone\Admin\SettingsPage;
 use Keystone\Http\Rest\SettingsController;
 
 use Keystone\Meta\MetaService;
+use Keystone\Meta\Templates;
+use Keystone\Meta\Providers\PostTokenProvider;
 
 use Keystone\Robots\RobotsController;
 
@@ -24,56 +26,81 @@ use Keystone\Sitemap\SitemapController;
 use Keystone\Redirects\RedirectRepository;
 use Keystone\Redirects\RedirectManager;
 
+use Keystone\IndexNow\IndexNowService;
+
+use Keystone\Schema\GraphBuilder;
+use Keystone\Schema\Providers\OrganizationProvider;
+use Keystone\Schema\Providers\WebSiteProvider;
+use Keystone\Schema\Providers\ArticleProvider;
+use Keystone\Schema\Providers\ProductProvider;
+
+use Keystone\Integrations\WooCommerce\ProductDataProvider;
+
+use Keystone\Hreflang\HreflangController;
+
 use Keystone\Cli\Commands;
 
 if ( ! defined( 'ABSPATH' ) ) { exit; }
 
-/**
- * Keystone SEO main orchestrator.
- *
- * @since 0.1.0
- */
 class Keystone {
-	/** @var Container */
-	protected $c;
 
-	/** @var HookRegistrar */
+	protected $c;
 	protected $hooks;
 
 	public function __construct() {
 		$this->c     = new Container();
 		$this->hooks = new HookRegistrar();
 
-		// Bind core services.
 		$this->c->bind( 'paths', new Paths() );
 		$this->c->bind( 'logger', new Logger() );
 		$this->c->bind( 'caps', new Capabilities() );
 		$this->c->bind( 'nonce', new Nonce() );
 
-		// Settings snapshot.
 		$this->c->bind( 'settings', function () {
 			return get_option( 'keystone_seo_settings', array() );
 		} );
 
-		// Feature: Meta.
+		// Meta (templates + providers).
+		$this->c->bind( 'meta.templates', new Templates() );
 		$this->c->bind( 'meta', function ( $c ) {
-			return new MetaService( $c->make( 'settings' ) );
+			$svc = new MetaService( $c->make( 'settings' ), $c->make( 'meta.templates' ) );
+			$svc->add_provider( new PostTokenProvider( '—' ) );
+			return $svc;
 		} );
 
-		// Feature: Robots.
+		// Robots.
 		$this->c->bind( 'robots', new RobotsController() );
 
-		// Feature: Sitemap.
+		// Sitemaps.
 		$this->c->bind( 'sitemap.provider', new SitemapProvider() );
 		$this->c->bind( 'sitemap.controller', function ( $c ) {
 			return new SitemapController( $c->make( 'sitemap.provider' ) );
 		} );
 
-		// Feature: Redirects.
+		// Redirects.
 		$this->c->bind( 'redirect.repo', new RedirectRepository() );
 		$this->c->bind( 'redirect.manager', function ( $c ) {
 			return new RedirectManager( $c->make( 'redirect.repo' ) );
 		} );
+
+		// IndexNow.
+		$this->c->bind( 'indexnow', function ( $c ) {
+			return new IndexNowService( $c->make( 'settings' ) );
+		} );
+
+		// Schema.
+		$this->c->bind( 'schema.graph', function ( $c ) {
+			$g = new GraphBuilder( $c->make( 'settings' ) );
+			$g->add_provider( new OrganizationProvider() );
+			$g->add_provider( new WebSiteProvider() );
+			$g->add_provider( new ArticleProvider() );
+			// Woo Product provider (only contributes on product pages).
+			$g->add_provider( new ProductProvider( new ProductDataProvider() ) );
+			return $g;
+		} );
+
+		// Hreflang.
+		$this->c->bind( 'hreflang', new HreflangController() );
 
 		// Admin UI.
 		$this->c->bind( 'admin.settings', function ( $c ) {
@@ -94,34 +121,23 @@ class Keystone {
 		} );
 	}
 
-	/**
-	 * Activation tasks (DB tables, rewrites).
-	 *
-	 * @return void
-	 */
 	public function activate() {
 		$this->c->make( 'redirect.repo' )->migrate();
-		// Add rewrite rules once to ensure saved structure.
 		$this->c->make( 'sitemap.controller' )->add_rewrite_rules();
 	}
 
-	/**
-	 * Wire everything on runtime.
-	 *
-	 * @return void
-	 */
 	public function run() {
-		// Admin menu.
+		// Admin.
 		$this->hooks->action( 'admin_menu', $this->c->make( 'admin.menu' ), 'register_menu' );
 
-		// REST routes.
+		// REST.
 		$this->hooks->action( 'rest_api_init', $this->c->make( 'rest.settings' ), 'register_routes' );
 
 		// Meta.
 		$this->hooks->filter( 'document_title_parts', $this->c->make( 'meta' ), 'filter_document_title', 10, 1 );
 		$this->hooks->action( 'wp_head', $this->c->make( 'meta' ), 'output_head_tags', 1, 0 );
 
-		// Robots.txt.
+		// Robots.
 		$this->hooks->filter( 'robots_txt', $this->c->make( 'robots' ), 'filter_robots', 10, 2 );
 
 		// Sitemaps.
@@ -130,6 +146,16 @@ class Keystone {
 
 		// Redirects.
 		$this->hooks->action( 'template_redirect', $this->c->make( 'redirect.manager' ), 'maybe_redirect', 0, 0 );
+
+		// IndexNow signals (publish/delete).
+		$this->hooks->action( 'transition_post_status', $this->c->make( 'indexnow' ), 'on_transition_post_status', 10, 3 );
+		$this->hooks->action( 'deleted_post', $this->c->make( 'indexnow' ), 'on_deleted_post', 10, 1 );
+
+		// Schema output.
+		$this->hooks->action( 'wp_head', $this->c->make( 'schema.graph' ), 'output', 2, 0 );
+
+		// Hreflang.
+		$this->hooks->action( 'wp_head', $this->c->make( 'hreflang' ), 'output', 3, 0 );
 
 		// CLI.
 		$this->c->make( 'cli.commands' )->register();
