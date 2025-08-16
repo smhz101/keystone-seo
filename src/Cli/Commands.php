@@ -32,11 +32,17 @@ class Commands {
 	/**
 	 * Inject services for CLI.
 	 *
-	 * @param SitemapRegistry        $registry   Sitemap sources registry.
-	 * @param RedirectRepository|null $redirects Redirects repository.
-	 * @param NotFoundRepository|null $nf        404 monitor repository.
+	 * @param SitemapRegistry          $registry   Sitemap sources registry.
+	 * @param RedirectRepository|null  $redirects  Redirects repository.
+	 * @param NotFoundRepository|null  $nf         404 monitor repository.
+	 * @param IndexNowService|null     $indexnow   IndexNow service (optional).
 	 */
-	public function __construct( SitemapRegistry $registry, RedirectRepository $redirects = null, NotFoundRepository $nf = null ) {
+	public function __construct( 
+		SitemapRegistry $registry, 
+		RedirectRepository $redirects = null, 
+		NotFoundRepository $nf = null, 
+		IndexNowService $indexnow = null 
+		) {
 		$this->registry  = $registry;
 		$this->redirects = $redirects;
 		$this->nf        = $nf;
