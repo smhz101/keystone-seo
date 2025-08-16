@@ -39,6 +39,13 @@ use Keystone\Schema\Providers\ProductProvider;
 
 use Keystone\Integrations\WooCommerce\ProductDataProvider;
 
+use Keystone\Meta\MetaRepository;
+use Keystone\Meta\MetaBox;
+use Keystone\Meta\CanonicalRobots;
+
+use Keystone\Breadcrumbs\BreadcrumbsService;
+use Keystone\Frontend\TemplateTags;
+
 use Keystone\Hreflang\HreflangController;
 use Keystone\Hreflang\Adapters\WPMLAdapter;
 use Keystone\Hreflang\Adapters\PolylangAdapter;
@@ -72,6 +79,21 @@ class Keystone {
 			$svc->add_provider( new PostTokenProvider( '—' ) );
 			return $svc;
 		} );
+
+		// Per-post meta.
+		$this->c->bind( 'meta.repo', new MetaRepository() );
+		$this->c->bind( 'meta.box', function ( $c ) {
+			return new MetaBox( $c->make( 'caps' ), $c->make( 'nonce' ), $c->make( 'meta.repo' ) );
+		} );
+
+		// Canonical + robots.
+		$this->c->bind( 'meta.canonical', function ( $c ) {
+			return new CanonicalRobots( $c->make( 'meta.repo' ), $c->make( 'settings' ) );
+		} );
+
+		// Breadcrumbs + template tags.
+		$this->c->bind( 'breadcrumbs', new BreadcrumbsService() );
+		$this->c->bind( 'frontend.tags', function( $c ){ return new TemplateTags( $c->make('breadcrumbs') ); } );
 
 		// Robots.
 		$this->c->bind( 'robots', function ( $c ) { return new RobotsController( $c->make( 'settings' ) ); } );
@@ -140,6 +162,16 @@ class Keystone {
 
 		// Meta + Schema + Hreflang.
 		$this->hooks->filter( 'document_title_parts', $this->c->make( 'meta' ), 'filter_document_title', 10, 1 );
+		$this->hooks->action( 'add_meta_boxes', $this->c->make( 'meta.box' ), 'add_meta_boxes' );
+		$this->hooks->action( 'save_post', $this->c->make( 'meta.box' ), 'save_post', 10, 1 );
+
+		// Canonical + robots.
+		$this->hooks->action( 'wp_head', $this->c->make( 'meta.canonical' ), 'output', 0, 0 );
+
+		// Shortcode + template tag.
+		$this->hooks->action( 'init', $this->c->make( 'frontend.tags' ), 'register_shortcodes' );
+		$this->hooks->action( 'init', $this->c->make( 'frontend.tags' ), 'register_template_tag' );
+
 		$this->hooks->action( 'wp_head', $this->c->make( 'meta' ), 'output_head_tags', 1, 0 );
 		$this->hooks->action( 'wp_head', $this->c->make( 'schema.graph' ), 'output', 2, 0 );
 		$this->hooks->action( 'wp_head', $this->c->make( 'hreflang' ), 'output', 3, 0 );
