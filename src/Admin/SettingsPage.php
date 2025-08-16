@@ -46,9 +46,16 @@ class SettingsPage {
 			'og_use_generator' => false,
 			'og_bg'            => '',
 			'og_fg'            => '',
+			'sm_include_cpt'  => array(),
+			'sm_include_tax'  => array(),
 		);
 		$settings = wp_parse_args( get_option( $this->option_key, array() ), $defaults );
+
+		// Collect public CPTs and taxonomies.
+		$cpts = get_post_types( array( 'public' => true ), 'objects' );
+		$taxs = get_taxonomies( array( 'public' => true ), 'objects' );
 		?>
+
 		<div class="wrap">
 			<h1><?php echo esc_html( get_admin_page_title() ); ?></h1>
 			<form method="post">
@@ -138,6 +145,38 @@ class SettingsPage {
 					</tr>
 				</table>
 
+				<h2 class="title"><?php esc_html_e( 'Sitemaps', 'keystone-seo' ); ?></h2>
+				<table class="form-table" role="presentation">
+					<tr>
+						<th scope="row"><?php esc_html_e( 'Custom Post Types', 'keystone-seo' ); ?></th>
+						<td>
+							<?php foreach ( $cpts as $pt ) :
+								if ( in_array( $pt->name, array( 'post', 'page' ), true ) ) { continue; } ?>
+								<label style="display:inline-block;margin-right:16px;">
+									<input type="checkbox" name="sm_include_cpt[]" value="<?php echo esc_attr( $pt->name ); ?>"
+										<?php checked( in_array( $pt->name, (array) $settings['sm_include_cpt'], true ) ); ?> />
+									<?php echo esc_html( $pt->labels->name . ' (' . $pt->name . ')' ); ?>
+								</label>
+							<?php endforeach; ?>
+							<p class="description"><?php esc_html_e( 'Posts and Pages are always included.', 'keystone-seo' ); ?></p>
+						</td>
+					</tr>
+					<tr>
+						<th scope="row"><?php esc_html_e( 'Taxonomies', 'keystone-seo' ); ?></th>
+						<td>
+							<?php foreach ( $taxs as $tx ) :
+								if ( in_array( $tx->name, array( 'category', 'post_tag' ), true ) ) { continue; } ?>
+								<label style="display:inline-block;margin-right:16px;">
+									<input type="checkbox" name="sm_include_tax[]" value="<?php echo esc_attr( $tx->name ); ?>"
+										<?php checked( in_array( $tx->name, (array) $settings['sm_include_tax'], true ) ); ?> />
+									<?php echo esc_html( $tx->labels->name . ' (' . $tx->name . ')' ); ?>
+								</label>
+							<?php endforeach; ?>
+							<p class="description"><?php esc_html_e( 'Categories & Tags are always included.', 'keystone-seo' ); ?></p>
+						</td>
+					</tr>
+				</table>
+
 				<?php submit_button( __( 'Save Settings', 'keystone-seo' ), 'primary', 'keystone_save_settings' ); ?>
 			</form>
 		</div>
@@ -174,8 +213,21 @@ class SettingsPage {
 			'og_default_image' 	=> isset( $_POST['og_default_image'] ) ? esc_url_raw( wp_unslash( $_POST['og_default_image'] ) ) : '',
 			'og_use_generator' 	=> isset( $_POST['og_use_generator'] ) ? (bool) absint( $_POST['og_use_generator'] ) : false,
 			'og_bg' 						=> isset( $_POST['og_bg'] ) ? sanitize_text_field( wp_unslash( $_POST['og_bg'] ) ) : '',
-			'og_fg' 						=> isset( $_POST['og_fg'] ) ? sanitize_text_field( wp_unslash( $_POST['og_fg'] ) ) : '',
+			'og_fg' 						=> isset( $_POST['og_fg'] ) ? sanitize_text_field( wp_unslash( $_POST['og_fg'] ) ) : ''
 		);
+
+		$data['sm_include_cpt'] = array();
+		if ( isset( $_POST['sm_include_cpt'] ) ) { // phpcs:ignore
+			foreach ( (array) $_POST['sm_include_cpt'] as $pt ) { // phpcs:ignore
+				$data['sm_include_cpt'][] = sanitize_key( $pt );
+			}
+		}
+		$data['sm_include_tax'] = array();
+		if ( isset( $_POST['sm_include_tax'] ) ) { // phpcs:ignore
+			foreach ( (array) $_POST['sm_include_tax'] as $tx ) { // phpcs:ignore
+				$data['sm_include_tax'][] = sanitize_key( $tx );
+			}
+		}
 
 		update_option( $this->option_key, $data );
 		add_settings_error( 'keystone_seo', 'saved', __( 'Settings saved.', 'keystone-seo' ), 'updated' );
